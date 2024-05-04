@@ -1,0 +1,23 @@
+#!/bin/bash
+# List the domains of a certificate file
+# provided by Let's Encrypt
+
+# check if the script was called with the correct number of arguments
+# in this case, the path to the certificate file
+# example: ./cert-domains.sh example.com
+#
+if [ "$#" -ne 1 ]; then
+    echo "Usage: $0 <domain or directory>"
+    exit 1
+fi
+
+CERT_PATH="/etc/letsencrypt/live/$1/cert.pem"
+
+# check if the certificate file exists
+if ! sudo test -f "$CERT_PATH"; then
+    echo "Certify not found in: $CERT_PATH"
+    exit 1
+fi
+
+# Extract and print the domains from the certificate file
+sudo openssl x509 -in "$CERT_PATH" -text -noout | grep -A 1 "Subject Alternative Name" | tail -n 1 | sed -e 's/^[^D]*DNS://;s/, DNS:/\n/g;s/^/Domains:\n\n/;$a\\n'
