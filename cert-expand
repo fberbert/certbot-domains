@@ -1,0 +1,56 @@
+#!/bin/bash
+# expand the certificate to include the new subdomains
+# receive the directory name as the first argument
+# and the new subdomains as the rest of the arguments
+
+# get the certificate path
+if [ -z "$1" ]; then
+    echo "Usage: cert-expand <domain> <subdomain1> <subdomain2> ..."
+    exit 1
+fi
+
+DOMAIN=$1
+CERT_PATH="/etc/letsencrypt/live/$DOMAIN/cert.pem"
+
+# check if the certificate file exists
+if ! sudo test -f "$CERT_PATH"; then
+    echo "Certify not found in: $CERT_PATH"
+    exit 1
+fi
+
+# get the list of new subdomains
+shift
+SUBDOMAINS=("$@")
+
+if [ ${#SUBDOMAINS[@]} -eq 0 ]; then
+    echo "No subdomains provided"
+    exit 1
+fi
+
+# Extract the domains from the certificate file
+CURRENT_DOMAINS=$(sudo openssl x509 -in "$CERT_PATH" -text -noout | grep -A 1 "Subject Alternative Name" | tail -n 1 | sed -e 's/^[^D]*DNS://;s/, DNS:/\n/g;')
+
+# check if the certificate has the new subdomains
+for SUBDOMAIN in "${SUBDOMAINS[@]}"; do
+    if echo "$CURRENT_DOMAINS" | grep -q "$SUBDOMAIN"; then
+        echo "The subdomain $SUBDOMAIN is already in the certificate"
+        exit 1
+    fi
+done
+
+# expand the certificate
+# need to add -d for each current domain
+CMD="sudo certbot --expand -d $DOMAIN"
+for CURRENT_DOMAIN in $CURRENT_DOMAINS; do
+    CMD+=" -d $CURRENT_DOMAIN"
+done
+
+# add the new subdomains
+for SUBDOMAIN in "${SUBDOMAINS[@]}"; do
+    CMD+=" -d $SUBDOMAIN"
+done
+CMD+=" certonly"
+
+echo "Expanding the certificate to include the new subdomains"
+echo "Command: $CMD"
+$CMD
